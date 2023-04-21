@@ -1,18 +1,24 @@
 import { useState } from "react";
-import hashWorker from "../utils/hashWorker";
-
+import { merge, verifyFile, uploadFile } from "../api";
 interface IChunkList {
   chunk: Blob
 }
 
 const UploadFile = () => {
-
   const [filename, setFilename] = useState<string>('');
   const [chunkList, setChunkList] = useState<IChunkList[]>([]);
   const [percentage, setPercentage] = useState<number>(0);
-  const [fileHash, setFileHash] = useState<string>('');
 
   const CHUNK_SIZE = 1 * 1024 * 1024;
+
+  const getFileSuffix = (fileName) => {
+    let arr = fileName.split(".");
+    if (arr.length > 0) {
+      return arr[arr.length - 1]
+    }
+    return "";
+  }
+
 
   const splitFile = (file: File, size = CHUNK_SIZE) => {
     const fileChunkList = [];
@@ -52,8 +58,31 @@ const UploadFile = () => {
     });
   }
 
-  const verifyFile = () => {
+  // 上传分片
+  const uploadChunks = async (chunksData, fileHash: string) => {
+    const formDataList = chunksData.map(({ chunk, hash }) => {
+      const formData = new FormData()
+      formData.append('chunk', chunk);
+      formData.append('hash', hash);
+      formData.append('suffix', getFileSuffix(filename));
+      return { formData };
+    });
 
+    const requestList = formDataList.map(({ formData }, index) => {
+      return uploadFile(formData, (e) => {
+        let list = [...chunksData];
+        list[index].progress = parseInt(String((e.loaded / e.total) * 100));
+        setChunkList(list)
+      })
+    });
+
+    // Promise.all(requestList).then(() => {
+    //   merge({
+    //     fileHash,
+    //     suffix: getFileSuffix(filename),
+    //     size: CHUNK_SIZE
+    //   })
+    // });
   }
 
   const handleFileUpload = async () => {
@@ -67,8 +96,41 @@ const UploadFile = () => {
       return;
     }
 
-    const hash = await calculateHash(chunkList);
-    setFileHash(String(hash));
+    const fileHash = await calculateHash(chunkList);
+
+    const fileSuffix = getFileSuffix(filename);
+    const result = await verifyFile({
+      fileHash,
+      fileSuffix,
+    });
+    const { isUpload, uploadedChunkList } = result.data;
+
+    if(isUpload) {
+      alert('文件已存在，无需重复上传');
+      return;
+    }
+
+    let uploadedChunkIndexList = [];
+    if (uploadedChunkList && uploadedChunkList.length > 0) {
+      uploadedChunkIndexList = uploadedChunkList.map(item => {
+        const arr = item.split('-');
+        return parseInt(arr[arr.length - 1])
+      })
+      alert("已上传的区块号：" + uploadedChunkIndexList.toString())
+    }
+
+    const chunksData = chunkList.map(({ chunk }, index) => ({
+      chunk: chunk,
+      hash: fileHash + "-" + index,
+      progress: 0
+    })).filter(item => {
+      // 过滤掉已上传的块
+      const arr = item.hash.split('-')
+      return uploadedChunkIndexList.indexOf(parseInt(arr[arr.length - 1])) === -1;
+    });
+
+    setChunkList(chunksData);
+    uploadChunks(chunksData, String(fileHash))
   }
 
 
