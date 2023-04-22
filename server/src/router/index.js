@@ -18,18 +18,18 @@ const getUploadedChunkList = async (fileHash) => {
 const pipeStream = (path, writeStream) => {
   return new Promise(resolve => {
     const readStream = fse.createReadStream(path);
+    readStream.pipe(writeStream);
     readStream.on('end', () => {
-      fse.unlinkSync(path);
       resolve();
     });
-    readStream.pipe(writeStream);
   });
 };
 
 const mergeFileChunk = async (filePath, fileHash, size) => {
   const chunksDir = path.resolve(UPLOAD_FILES_DIR, fileHash);
   const chunkPaths = await fse.readdir(chunksDir);
-  chunkPaths.sort((a, b) => a.split('-')[1] - b.split('')[1]);
+  chunkPaths.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
+
   await Promise.all(
     chunkPaths.map((chunkPath, index) =>
       pipeStream(
@@ -41,12 +41,11 @@ const mergeFileChunk = async (filePath, fileHash, size) => {
       )
     )
   );
-  fse.rmdirSync(chunksDir);
 };
 
 router.post('/merge', async (req, res) => {
   const { fileHash, suffix, size } = req.body;
-  const filePath = path.resolve(UPLOAD_FILES_DIR, fileHash + "." + suffix);
+  const filePath = path.resolve(UPLOAD_FILES_DIR, fileHash + '.' + suffix);
   await mergeFileChunk(filePath, fileHash, size);
   res.send({
     code: 200,
@@ -62,7 +61,7 @@ router.post('/verifyFile', async (req, res) => {
     res.send({
       code: 200,
       data: {
-        isUpload: true,
+        isUploaded: true,
         uploadedChunkList: [],
       }
     });
@@ -70,12 +69,11 @@ router.post('/verifyFile', async (req, res) => {
     return;
   }
 
-  // 获取已上传的文件列表
   const uploadedList = await getUploadedChunkList(fileHash);
   res.send({
     code: 200,
     data: {
-      isUpload: false,
+      isUploaded: false,
       uploadedChunkList: uploadedList.length > 0 ? uploadedList : [],
     }
   })
@@ -88,17 +86,28 @@ router.post('/uploadFile', async (req, res) => {
     const [chunk] = files.chunk;
     const [hash] = fields.hash;
     const [suffix] = fields.suffix;
-    // 注意这里的hash包含文件的hash和块的索引，所以需要使用split切分
     const chunksDir = path.resolve(UPLOAD_FILES_DIR, hash.split('-')[0]);
-    if (!fse.existsSync(chunksDir)) {
-      await fse.mkdirs(chunksDir);
+
+    try {
+      if (!fse.existsSync(chunksDir)) {
+        await fse.mkdirs(chunksDir);
+      }
+
+      const buffer = fse.readFileSync(chunk.path);
+      const writeStream = fse.createWriteStream(`${chunksDir}/${hash}`);
+      writeStream.write(buffer);
+      writeStream.close();
+
+      res.send({
+        code: 200,
+        message: 'received file chunk'
+      });
+    } catch(err) {
+      res.send({
+        code: 500,
+        message: 'received file chunk failure'
+      });
     }
-    await fse.move(chunk.path, chunksDir + '/' + hash);
-  })
-  
-  res.send({
-    code: 200,
-    message: 'received file chunk'
   })
 });
 

@@ -3,7 +3,7 @@ const express = require('express');
 
 const router = require('./router');
 
-let app = express();
+const app = express();
 
 const jsonParser = bodyParser.json({ extended: false });
 
