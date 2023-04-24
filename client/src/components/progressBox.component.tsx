@@ -58,9 +58,15 @@ const Block = ({ progress, size, chunkIndex }) => {
 
 const ProgressBox = ({ chunkList = [], size = 40 }) => {
   const sumProgress = useMemo(() => {
-    if (chunkList.length === 0) return 0
-    return chunkList.reduce((pre, cur, sum) => pre + cur.progress / 100, 0) * 100 / (chunkList.length)
+    if (chunkList.length === 0) {
+      return 0;
+    }
+
+    const progress = chunkList.reduce((pre, cur, sum) => pre + cur.progress / 100, 0) * 100 / (chunkList.length);
+    return Number.isNaN(progress) ? 0 : progress;
   }, [chunkList])
+
+  console.log('sumProgress', sumProgress);
 
   return (
     <ProgressWraper>
@@ -70,7 +76,7 @@ const ProgressBox = ({ chunkList = [], size = 40 }) => {
           <Block key={index} size={size} chunkIndex={index} progress={progress} />
         ))}
       </ChunksProgress>
-      <Label>总进度:{sumProgress.toFixed(2) || 0}%</Label>
+      <Label>总进度:{sumProgress.toFixed(2)}%</Label>
     </ProgressWraper >
   )
 }

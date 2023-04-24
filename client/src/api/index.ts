@@ -21,13 +21,13 @@ export const verifyFile = (params) => {
   })
 }
 
-export const uploadFile = (params, callback) => {
+export const uploadFile = (params, progressCallback) => {
   return request({
     url: '/uploadFile',
     method: 'post',
     data: params,
     onUploadProgress: (e) => {
-      callback(e);
-    }
+      progressCallback(e);
+    },
   })
 }

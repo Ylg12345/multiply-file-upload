@@ -2,14 +2,16 @@ import { useState } from "react";
 import { merge, verifyFile, uploadFile } from "../api";
 import ProgressBox from "./progressBox.component";
 interface IChunkList {
-  chunk: Blob
+  chunk: Blob;
+  hash?: string;
+  progress?: number;
 }
 
 const UploadFile = () => {
   const [filename, setFilename] = useState<string>('');
   const [chunkList, setChunkList] = useState<IChunkList[]>([]);
 
-  const CHUNK_SIZE = 2 * 1024 * 1024;
+  const CHUNK_SIZE = 1 * 1024 * 1024;
 
   const getFileSuffix = (fileName) => {
     let arr = fileName.split('.');
@@ -17,7 +19,7 @@ const UploadFile = () => {
       return arr[arr.length - 1]
     }
     return '';
-  }
+  };
 
 
   const splitFile = (file: File, size = CHUNK_SIZE) => {
@@ -31,7 +33,7 @@ const UploadFile = () => {
     }
 
     return fileChunkList;
-  }
+  };
  
   const handleFileChange = (e) => {
     const { files } = e.target;
@@ -42,7 +44,7 @@ const UploadFile = () => {
     setFilename(files[0].name);
     const chunkList = splitFile(files[0])
     setChunkList(chunkList);
-  }
+  };
 
   const calculateHash = (list: IChunkList[]) => {
     return new Promise((resolve) => {
@@ -55,9 +57,8 @@ const UploadFile = () => {
         }
       };
     });
-  }
+  };
 
-  // 上传分片
   const uploadChunks = async (chunksData, fileHash: string) => {
     if(chunksData.length === 0) {
       await merge({
@@ -67,7 +68,7 @@ const UploadFile = () => {
       });
     }
 
-    const MAX_SIZE = 3;
+    const MAX_SIZE = 5;
     let pool = [];
     let finish = 0;
     let failList = [];
@@ -79,11 +80,14 @@ const UploadFile = () => {
       formData.append('suffix', getFileSuffix(filename));
       let task;
       try {
-        task = await uploadFile(formData, (e) => {
-          let list = [...chunksData];
-          list[index].progress = parseInt(String((e.loaded / e.total) * 100));
-          setChunkList(list)
-        });
+        task = await uploadFile(
+          formData, 
+          (e) => {
+            let list = [...chunksData];
+            list[index].progress = parseInt(String((e.loaded / e.total) * 100));
+            setChunkList(list)
+          }
+        );
         pool.push(task);
       } catch(err) {
         failList.push({
@@ -137,7 +141,7 @@ const UploadFile = () => {
         const arr = item.split('-');
         return parseInt(arr[arr.length - 1])
       })
-      alert("已上传的区块号：" + uploadedChunkIndexList.toString())
+      alert('已上传的区块号：' + uploadedChunkIndexList.toString());
     }
 
     const chunksData = chunkList.map(({ chunk }, index) => ({
@@ -151,8 +155,8 @@ const UploadFile = () => {
     });
 
     setChunkList(chunksData);
-    uploadChunks(chunksData, String(fileHash))
-  }
+    uploadChunks(chunksData, String(fileHash));
+  };
   
   return (
     <>
